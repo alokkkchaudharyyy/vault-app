@@ -10,7 +10,7 @@ import 'state.dart';
 import 'theme.dart';
 
 /// Your second brain, as far as the phone sees it: this morning's page, your
-/// goals, this week and your projects. The notes themselves
+/// the motto, this week and your projects. The notes themselves
 /// live in the vault on the laptop; it publishes these on every sync.
 class BrainPage extends StatelessWidget {
   const BrainPage({super.key});
@@ -21,9 +21,8 @@ class BrainPage extends StatelessWidget {
     final store = app.store;
     final morning = store.page('morning');
     final weekly = store.page('weekly');
-    final goals = store.page('goals')?.body.split('\n').where((g) => g.trim().isNotEmpty).toList() ?? const [];
     final projects = _projects(store.page('projects'));
-    final nothing = morning == null && weekly == null && goals.isEmpty && projects.isEmpty;
+    final nothing = morning == null && weekly == null && projects.isEmpty;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
@@ -36,35 +35,32 @@ class BrainPage extends StatelessWidget {
             page: morning,
             color: AppColors.cream,
           ),
-        if (goals.isNotEmpty) ...[
-          const _Heading('Goals'),
-          Card(
-            key: const ValueKey('brain-goals'),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final g in goals)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 10,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 2),
-                            child: Icon(Icons.flag_rounded, size: 18, color: AppColors.orange),
-                          ),
-                          Expanded(child: Text(_withoutDate(g), style: Theme.of(context).textTheme.bodyLarge)),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
+        // Goals stay in the notes; the home page carries the motto.
+        Card(
+          key: const ValueKey('brain-motto'),
+          color: AppColors.orange,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 4,
+              children: [
+                Text(
+                  'Grind Hard',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Text(
+                  'Be true to yourself',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
         if (weekly != null) ...[
           const _Heading('This week'),
           _PageCard(key: const ValueKey('brain-weekly'), label: weekly.title ?? weekly.key, page: weekly),
@@ -88,8 +84,6 @@ class BrainPage extends StatelessWidget {
     );
   }
 }
-
-String _withoutDate(String goal) => goal.replaceFirst(RegExp(r'\s*\(\d{4}-\d{2}-\d{2}\)\.?$'), '');
 
 List<Map<String, Object?>> _projects(VaultPage? page) {
   if (page == null) return const [];
