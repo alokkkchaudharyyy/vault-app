@@ -49,7 +49,7 @@ class WelcomePage extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
               children: [
                 Text(
-                  'Vault',
+                  'G.ONE',
                   style: t.displaySmall?.copyWith(fontWeight: FontWeight.w900, color: AppColors.orange),
                 ),
                 const SizedBox(height: 6),

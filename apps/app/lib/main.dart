@@ -96,7 +96,7 @@ class TodoApp extends StatelessWidget {
   Widget build(BuildContext context) => AppScope(
         state: state,
         child: MaterialApp(
-          title: 'Vault',
+          title: 'G.ONE',
           navigatorKey: _navigator,
           debugShowCheckedModeBanner: false,
           theme: appTheme(),

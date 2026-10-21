@@ -213,7 +213,7 @@ class _CalendarSectionState extends State<CalendarSection> {
             child: Text(sync.calendarId == null ? 'Choose a calendar' : 'Loading calendars…'),
           )
         else if (calendars.isEmpty)
-          const Text('No calendar available. Allow calendar access for Vault in system settings.')
+          const Text('No calendar available. Allow calendar access for G.ONE in system settings.')
         else
           RadioGroup<String?>(
             groupValue: calendars.any((c) => c.id == sync.calendarId) ? sync.calendarId : null,
