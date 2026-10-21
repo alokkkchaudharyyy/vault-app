@@ -26,6 +26,7 @@ const categoryIcons = {
   Categories.fun: Icons.celebration_rounded,
   Categories.education: Icons.school_rounded,
   Categories.transfers: Icons.swap_horiz_rounded,
+  Categories.own: Icons.sync_alt_rounded,
   Categories.other: Icons.more_horiz_rounded,
 };
 
@@ -70,7 +71,8 @@ class _MoneyPageState extends State<MoneyPage> {
     final isNow = _month == today().substring(0, 7);
 
     final byDay = <String, List<Expense>>{};
-    for (final e in s.items) {
+    // Money moved between your own accounts is neither spent nor received.
+    for (final e in s.counted) {
       byDay.putIfAbsent(e.date, () => []).add(e);
     }
 
@@ -161,7 +163,15 @@ class _MoneyPageState extends State<MoneyPage> {
                 ),
               ],
               const SizedBox(height: 12),
-              if (s.items.isEmpty && _access == true)
+              if (s.ownTransfers > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '${s.ownTransfers} transfers between your own accounts left out',
+                    style: t.bodySmall?.copyWith(color: AppColors.muted),
+                  ),
+                ),
+              if (s.counted.isEmpty && _access == true)
                 Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
