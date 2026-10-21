@@ -22,8 +22,23 @@ class MainActivity : FlutterActivity() {
     private var pendingAccess: MethodChannel.Result? = null
     private var pendingTrash: MethodChannel.Result? = null
 
+    // Something shared to the app: read once, handed to Dart.
+    private var shareChannel: MethodChannel? = null
+    private var initialShare: Map<String, Any>? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        initialShare = readShare(intent)
+        shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "todo/share").apply {
+            setMethodCallHandler { call, result ->
+                if (call.method == "initial") {
+                    result.success(initialShare)
+                    initialShare = null
+                } else {
+                    result.notImplemented()
+                }
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "todo/shots").setMethodCallHandler { call, result ->
             when (call.method) {
                 "hasAccess" -> result.success(hasImageAccess())
@@ -82,6 +97,44 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        readShare(intent)?.let { shareChannel?.invokeMethod("shared", it) }
+    }
+
+    /**
+     * A share from another app as {text, subject, images}: images are copied
+     * into the cache, since the URI's permission ends with the intent. The
+     * intent is marked read so a restart does not share it again.
+     */
+    private fun readShare(intent: Intent?): Map<String, Any>? {
+        if (intent == null || (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE)) return null
+        val uris = ArrayList<Uri>()
+        if (intent.action == Intent.ACTION_SEND_MULTIPLE) {
+            intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)?.let(uris::addAll)
+        } else {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)?.let(uris::add)
+        }
+        val dir = java.io.File(cacheDir, "shared").apply { mkdirs() }
+        val images = uris.mapIndexedNotNull { i, uri ->
+            try {
+                val type = contentResolver.getType(uri) ?: ""
+                if (!type.startsWith("image/")) return@mapIndexedNotNull null
+                val file = java.io.File(dir, "${System.currentTimeMillis()}_$i.img")
+                contentResolver.openInputStream(uri)?.use { input -> file.outputStream().use { input.copyTo(it) } }
+                file.absolutePath
+            } catch (e: Exception) {
+                null
+            }
+        }
+        val share = HashMap<String, Any>()
+        intent.getStringExtra(Intent.EXTRA_TEXT)?.let { share["text"] = it }
+        intent.getStringExtra(Intent.EXTRA_SUBJECT)?.let { share["subject"] = it }
+        share["images"] = images
+        intent.action = null
+        return share
     }
 
     private fun imagePermission() =
