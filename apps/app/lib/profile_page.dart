@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:vault_core/vault_core.dart';
 
 import 'brain_page.dart';
+import 'collections_page.dart';
 import 'habits_page.dart';
 import 'screen_page.dart';
 import 'screenshots_page.dart';
@@ -137,6 +138,15 @@ class ProfilePage extends StatelessWidget {
           'Screen time',
           'Which apps, how long and when, on the phone and the laptop',
           () => open('Screen time', const ScreenPage()),
+        ),
+        const SizedBox(height: 8),
+        tile(
+          'collections',
+          Icons.collections_bookmark_rounded,
+          AppColors.orange,
+          'Collections',
+          'Places, recipes, watchlist, wishlist: what you shared or kept',
+          () => open('Collections', const CollectionsPage()),
         ),
         if (Platform.isAndroid) ...[
           const SizedBox(height: 8),
