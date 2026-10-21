@@ -18,6 +18,11 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.MANAGE_MEDIA" />
+    <!-- Money: bank and UPI messages are read on the phone to track spending. -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Health: steps and sleep from Health Connect, read only. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <application
         android:label="G.ONE"
         android:name="${applicationName}"
@@ -44,6 +49,10 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Health Connect shows why the app asks (Android 13 and older). -->
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
             </intent-filter>
             <!-- "Share to G.ONE" from any app: links, text and images. -->
             <intent-filter>
@@ -88,6 +97,17 @@
                 <action android:name="es.antonborri.home_widget.action.BACKGROUND" />
             </intent-filter>
         </receiver>
+        <!-- Health Connect's "why this app" link (Android 14 and newer). -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
+            </intent-filter>
+        </activity-alias>
         <!-- A task from a widget: tap its text for details and actions. Also
              the landing point for a tap on its tick, which it passes on. -->
         <activity
@@ -120,6 +140,7 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <package android:name="com.google.android.apps.healthdata"/>
         <!-- Opening saved links. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
