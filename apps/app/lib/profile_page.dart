@@ -6,6 +6,7 @@ import 'package:vault_core/vault_core.dart';
 import 'brain_page.dart';
 import 'habits_page.dart';
 import 'screen_page.dart';
+import 'screenshots_page.dart';
 import 'state.dart';
 import 'sync_page.dart';
 import 'theme.dart';
@@ -137,6 +138,17 @@ class ProfilePage extends StatelessWidget {
           'Which apps, how long and when, on the phone and the laptop',
           () => open('Screen time', const ScreenPage()),
         ),
+        if (Platform.isAndroid) ...[
+          const SizedBox(height: 8),
+          tile(
+            'screenshots',
+            Icons.photo_library_rounded,
+            AppColors.green,
+            'Screenshots',
+            'Swipe right to keep (its text goes to your diary), left to delete',
+            () => open('Screenshots', const ScreenshotsPage()),
+          ),
+        ],
         const SizedBox(height: 8),
         tile(
           'sync',
