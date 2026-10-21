@@ -174,7 +174,7 @@ class ProfilePage extends StatelessWidget {
         const SizedBox(height: 24),
         Center(
           child: Text(
-            'Vault · a private second brain your agents share',
+            'G.ONE · a private second brain your agents share',
             style: t.labelSmall?.copyWith(color: AppColors.muted),
           ),
         ),
