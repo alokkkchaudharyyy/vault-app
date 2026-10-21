@@ -13,6 +13,7 @@ import 'focus_page.dart';
 import 'profile_page.dart';
 import 'reminder_page.dart';
 import 'reminders.dart';
+import 'share_sheet.dart';
 import 'state.dart';
 import 'theme.dart';
 import 'today_page.dart';
@@ -31,6 +32,7 @@ Future<void> main() async {
   runApp(TodoApp(state: state));
   if (Platform.isAndroid) {
     _watchWidgetLaunches(state);
+    _watchShares();
     await _watchReminders(state);
   }
 }
@@ -59,6 +61,15 @@ Future<void> _watchWidgetLaunches(AppState state) async {
   HomeWidget.widgetClicked.listen((uri) => _openFromWidget(state, uri));
   _openFromWidget(state, await HomeWidget.initiallyLaunchedFromHomeWidget());
 }
+
+/// "Share to G.ONE" from another app opens the save sheet.
+Future<void> _watchShares() => watchShares((shared) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final context = _navigator.currentState?.overlay?.context;
+    if (context != null) showShareSheet(context, shared);
+  });
+  WidgetsBinding.instance.scheduleFrame();
+});
 
 final _navigator = GlobalKey<NavigatorState>();
 final _reminderOpen = <String>{};
