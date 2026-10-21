@@ -13,6 +13,11 @@
          seeing every app's name needs the package list. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <!-- Screenshots: read them to sort, and move the unwanted ones to the
+         trash without a system prompt each time once the user allows it. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.MANAGE_MEDIA" />
     <application
         android:label="G.ONE"
         android:name="${applicationName}"
