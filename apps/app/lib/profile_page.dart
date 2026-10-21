@@ -6,6 +6,8 @@ import 'package:vault_core/vault_core.dart';
 import 'brain_page.dart';
 import 'collections_page.dart';
 import 'habits_page.dart';
+import 'health_page.dart';
+import 'money_page.dart';
 import 'screen_page.dart';
 import 'screenshots_page.dart';
 import 'state.dart';
@@ -138,6 +140,26 @@ class ProfilePage extends StatelessWidget {
           'Screen time',
           'Which apps, how long and when, on the phone and the laptop',
           () => open('Screen time', const ScreenPage()),
+        ),
+        if (Platform.isAndroid) ...[
+          const SizedBox(height: 8),
+          tile(
+            'money',
+            Icons.account_balance_wallet_rounded,
+            AppColors.cream,
+            'Money',
+            'Spending from bank and UPI messages, budget and subscriptions',
+            () => open('Money', const MoneyPage()),
+          ),
+        ],
+        const SizedBox(height: 8),
+        tile(
+          'health',
+          Icons.favorite_rounded,
+          AppColors.red,
+          'Health',
+          'Sleep, steps, water, weight and workouts',
+          () => open('Health', const HealthPage()),
         ),
         const SizedBox(height: 8),
         tile(
