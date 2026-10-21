@@ -18,7 +18,8 @@ class HealthPage extends StatefulWidget {
 }
 
 class _HealthPageState extends State<HealthPage> {
-  bool _available = false, _access = true;
+  bool _available = false, _access = true, _checked = false;
+  String? _error;
 
   @override
   void initState() {
@@ -33,14 +34,36 @@ class _HealthPageState extends State<HealthPage> {
     setState(() {
       _available = available;
       _access = access;
+      _checked = true;
     });
     if (access) await _read();
   }
 
   Future<void> _read() async {
     final app = AppScope.of(context);
-    await collectHealth(app.store);
+    try {
+      await collectHealth(app.store);
+      if (mounted) setState(() => _error = null);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not read Health Connect: $e');
+    }
     app.change((_) {});
+  }
+
+  Future<void> _connect() async {
+    final ok = await requestHealthAccess();
+    if (!mounted) return;
+    setState(() => _access = ok);
+    if (ok) {
+      await _read();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Not connected. Allow Steps and Sleep for G.ONE in Health Connect.'),
+          action: SnackBarAction(label: 'Open', onPressed: openHealthSettings),
+        ),
+      );
+    }
   }
 
   @override
@@ -56,19 +79,42 @@ class _HealthPageState extends State<HealthPage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
         children: [
+          if (_checked && !_available)
+            const Card(
+              color: AppColors.raised,
+              child: ListTile(
+                leading: Icon(Icons.info_outline_rounded, color: AppColors.muted),
+                title: Text('Health Connect is not on this phone'),
+                subtitle: Text('Sleep is worked out from phone use; water, weight and workouts work as they are.'),
+              ),
+            ),
           if (_available && !_access)
             Card(
               color: AppColors.raised,
               child: ListTile(
+                key: const ValueKey('health-connect'),
                 leading: const Icon(Icons.favorite_rounded, color: AppColors.red),
                 title: const Text('Connect Health Connect'),
                 subtitle: const Text('Steps and sleep from Samsung Health, Google Fit or your watch'),
-                onTap: () async {
-                  final ok = await requestHealthAccess();
-                  setState(() => _access = ok);
-                  if (ok) _read();
-                },
+                onTap: _connect,
               ),
+            ),
+          if (_access && _available && week.every((d) => d.steps == null))
+            Card(
+              color: AppColors.raised,
+              child: ListTile(
+                leading: const Icon(Icons.sync_problem_rounded, color: AppColors.orange),
+                title: const Text('Connected, but no steps yet'),
+                subtitle: const Text(
+                  'In Samsung Health: Settings → Health Connect, and let it share Steps and Sleep. Then pull down here.',
+                ),
+                trailing: TextButton(onPressed: openHealthSettings, child: const Text('Open')),
+              ),
+            ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(_error!, style: t.bodySmall?.copyWith(color: AppColors.red)),
             ),
           GridView.count(
             crossAxisCount: 2,
@@ -92,7 +138,7 @@ class _HealthPageState extends State<HealthPage> {
                 color: AppColors.green,
                 label: 'Steps',
                 value: day.steps == null ? '—' : '${day.steps}',
-                detail: day.steps == null ? 'Needs Health Connect' : '${(day.steps! * 100 ~/ _stepGoal)}% of $_stepGoal',
+                detail: day.steps == null ? (_access && _available ? 'None recorded today' : 'Needs Health Connect') : '${(day.steps! * 100 ~/ _stepGoal)}% of $_stepGoal',
                 progress: day.steps == null ? null : day.steps! / _stepGoal,
               ),
               _Tile(
