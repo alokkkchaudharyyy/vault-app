@@ -172,13 +172,12 @@ Judgement judge(String text, {String? app}) {
   return Judgement(verdict, reason, info);
 }
 
-/// The diary entry a kept screenshot becomes, for the nightly agent to file.
-String diaryBodyFor(Shot shot, String info) {
-  final when = '${shot.takenAt.day} ${monthNames[shot.takenAt.month - 1]}, '
-      '${shot.takenAt.hour.toString().padLeft(2, '0')}:${shot.takenAt.minute.toString().padLeft(2, '0')}';
-  final from = shot.app == null ? '' : ' from ${shot.app}';
-  final text = info.length > 1500 ? '${info.substring(0, 1500)}…' : info;
-  return 'Screenshot$from ($when), kept to remember:\n$text';
+/// Where a screenshot came from and when: "from Instagram, 22 Oct 10:15".
+String shotSource(Shot shot) {
+  final d = shot.takenAt;
+  final when = '${d.day} ${monthNames[d.month - 1]} ${d.hour.toString().padLeft(2, '0')}:'
+      '${d.minute.toString().padLeft(2, '0')}';
+  return shot.app == null ? 'screenshot, $when' : 'from ${shot.app}, $when';
 }
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

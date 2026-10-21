@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:vault_core/vault_core.dart';
 
+import 'collections.dart';
 import 'screenshots.dart';
 import 'state.dart';
 import 'theme.dart';
@@ -101,7 +102,8 @@ class _ScreenshotsPageState extends State<ScreenshotsPage> with WidgetsBindingOb
       final info = _judged[shot.id]?.info ?? '';
       markKept(app.store, [shot.id]);
       if (info.trim().isNotEmpty) {
-        diaryId = app.change((s) => s.addDiary(diaryBodyFor(shot, info), date: ymd(shot.takenAt))).id;
+        final body = savedBody(guessCollection(info, app: shot.app), info, source: shotSource(shot));
+        diaryId = app.change((s) => s.addDiary(body, date: ymd(shot.takenAt))).id;
       }
       _kept++;
     } else {
@@ -417,7 +419,11 @@ class _ShotCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (j != null) Text(j.reason, style: t.bodySmall?.copyWith(color: AppColors.muted)),
+                    if (j != null)
+                      Text(
+                        '${j.reason} · keep → ${guessCollection(j.info, app: shot.app).label}',
+                        style: t.bodySmall?.copyWith(color: AppColors.muted),
+                      ),
                     if (j != null && j.info.isNotEmpty)
                       ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: 96),
