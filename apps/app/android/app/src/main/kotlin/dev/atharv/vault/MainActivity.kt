@@ -4,9 +4,13 @@ import android.app.AppOpsManager
 import android.app.KeyguardManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
 import android.os.Process
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -14,8 +18,41 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    // Screenshots: a permission prompt or a trash request waiting for the user.
+    private var pendingAccess: MethodChannel.Result? = null
+    private var pendingTrash: MethodChannel.Result? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "todo/shots").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasAccess" -> result.success(hasImageAccess())
+                "requestAccess" -> {
+                    if (hasImageAccess()) return@setMethodCallHandler result.success(true)
+                    pendingAccess = result
+                    requestPermissions(arrayOf(imagePermission()), REQUEST_IMAGES)
+                }
+                "canManage" -> result.success(MediaStore.canManageMedia(this))
+                "openManageSettings" -> {
+                    startActivity(
+                        Intent(Settings.ACTION_REQUEST_MANAGE_MEDIA, Uri.parse("package:$packageName"))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                    result.success(null)
+                }
+                "list" -> result.success(screenshots())
+                "trash" -> {
+                    val ids = call.argument<List<Number>>("ids").orEmpty()
+                    if (ids.isEmpty()) return@setMethodCallHandler result.success(true)
+                    val uris = ids.map { ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, it.toLong()) }
+                    // With "Media management" allowed, the system approves this without asking.
+                    val request = MediaStore.createTrashRequest(contentResolver, uris, true)
+                    pendingTrash = result
+                    startIntentSenderForResult(request.intentSender, REQUEST_TRASH, null, 0, 0, 0)
+                }
+                else -> result.notImplemented()
+            }
+        }
         // For the full-screen reminder: after it is answered over the lock
         // screen, the app steps back so the lock screen shows again.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "todo/device").setMethodCallHandler { call, result ->
@@ -44,6 +81,54 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    private fun imagePermission() =
+        if (Build.VERSION.SDK_INT >= 33) android.Manifest.permission.READ_MEDIA_IMAGES
+        else android.Manifest.permission.READ_EXTERNAL_STORAGE
+
+    private fun hasImageAccess() = checkSelfPermission(imagePermission()) == PackageManager.PERMISSION_GRANTED
+
+    /** Every image in a Screenshots folder, newest first, as {id, path, name, date}. */
+    private fun screenshots(): List<Map<String, Any>> {
+        val out = ArrayList<Map<String, Any>>()
+        val columns = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DATA,
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.DATE_TAKEN,
+            MediaStore.Images.Media.DATE_ADDED,
+        )
+        contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            columns,
+            "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.IS_TRASHED} = 0",
+            arrayOf("%Screenshots%"),
+            "${MediaStore.Images.Media.DATE_ADDED} DESC",
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val taken = c.getLong(3).takeIf { it > 0 } ?: (c.getLong(4) * 1000)
+                out.add(mapOf("id" to c.getLong(0), "path" to (c.getString(1) ?: continue), "name" to (c.getString(2) ?: ""), "date" to taken))
+            }
+        }
+        return out
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_IMAGES) {
+            pendingAccess?.success(hasImageAccess())
+            pendingAccess = null
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_TRASH) {
+            pendingTrash?.success(resultCode == RESULT_OK)
+            pendingTrash = null
         }
     }
 
@@ -114,5 +199,10 @@ class MainActivity : FlutterActivity() {
         // Still in front right now.
         close(minOf(to, System.currentTimeMillis()))
         return spans
+    }
+
+    companion object {
+        private const val REQUEST_IMAGES = 4101
+        private const val REQUEST_TRASH = 4102
     }
 }
