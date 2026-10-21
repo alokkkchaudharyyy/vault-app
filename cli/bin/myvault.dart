@@ -47,6 +47,8 @@ Future<void> main(List<String> args) async {
         ..addCommand(HabitCommand())
         ..addCommand(FocusCommand())
         ..addCommand(UsageCommand())
+        ..addCommand(MoneyCommand())
+        ..addCommand(HealthCommand())
         ..addCommand(VaultCommand())
         ..addCommand(ShowCommand())
         ..addCommand(StatsCommand())
@@ -934,6 +936,76 @@ class UsageCommand extends Cmd {
       }
       return lines.join('\n');
     });
+  }
+}
+
+class MoneyCommand extends Cmd {
+  MoneyCommand()
+      : super('money', 'Spending, from bank and UPI messages on the phone: myvault money [YYYY-MM], or add cash: myvault money add 120 chai');
+
+  @override
+  void run() {
+    if (rest.isNotEmpty && rest.first == 'add') {
+      final rupeesIn = rest.length < 2 ? null : double.tryParse(rest[1].replaceAll(',', ''));
+      if (rupeesIn == null || rupeesIn <= 0) throw UsageException('Say how much: myvault money add 120 chai', usage);
+      final e = store.addExpense(amount: (rupeesIn * 100).round(), merchant: rest.length > 2 ? rest.sublist(2).join(' ') : null);
+      return out(e.toJson(), () => 'Added ${rupees(e.amount)}${e.merchant == null ? '' : ' at ${e.merchant}'} (${e.category}).');
+    }
+    final s = store.moneySummary(rest.isEmpty ? null : rest.first);
+    final recurring = store.recurring();
+    out({...s.toJson(), 'recurring': [for (final r in recurring) r.toJson()]}, () {
+      if (s.items.isEmpty) return 'No payments recorded for ${s.month}. The phone app reads them from bank messages.';
+      return [
+        '${s.month}: spent ${rupees(s.spent)}, received ${rupees(s.received)}'
+            '${s.budget == null ? '' : ', budget ${rupees(s.budget!)} (${rupees(s.budget! - s.spent)} left)'}',
+        '',
+        for (final (c, v) in s.byCategory) '${rupees(v).padLeft(12)}  $c',
+        '',
+        'Top: ${s.topMerchants.take(5).map((m) => '${m.$1} ${rupees(m.$2)}').join(', ')}',
+        if (recurring.isNotEmpty) 'Every month: ${recurring.map((r) => '${r.merchant} ${rupees(r.amount)}').join(', ')}',
+      ].join('\n');
+    });
+  }
+}
+
+class HealthCommand extends Cmd {
+  HealthCommand()
+      : super('health', 'Sleep, steps, water, weight and workouts: myvault health [DAYS]; log: health water 500, health weight 71.5, health workout Push day');
+
+  @override
+  void run() {
+    if (rest.isNotEmpty && ['water', 'weight', 'workout'].contains(rest.first)) {
+      final value = rest.length > 1 ? rest.sublist(1).join(' ') : '';
+      switch (rest.first) {
+        case 'water':
+          final ml = int.tryParse(value);
+          if (ml == null) throw UsageException('Say how much in ml: myvault health water 500', usage);
+          final total = store.addWater(ml);
+          return out({'water_ml': total}, () => 'Water today: $total ml');
+        case 'weight':
+          final kg = double.tryParse(value);
+          if (kg == null) throw UsageException('Say the weight in kg: myvault health weight 71.5', usage);
+          store.setHealth(today(), HealthKind.weight, kg);
+          return out({'weight_kg': kg}, () => 'Weight: $kg kg');
+        default:
+          final id = store.addWorkout(value);
+          return out({'id': id, 'workout': value}, () => 'Logged: $value');
+      }
+    }
+    final days = store.healthDays(days: rest.isEmpty ? 7 : int.parse(rest.first));
+    out([for (final d in days) d.toJson()], () => [
+          for (final d in days)
+            [
+              prettyDate(d.date).padRight(12),
+              if (d.sleepMin != null)
+                'slept ${d.sleepMin! ~/ 60}h${(d.sleepMin! % 60).toString().padLeft(2, '0')}${d.sleepGuessed ? '~' : ''}',
+              if (d.steps != null) '${d.steps} steps',
+              if (d.water > 0) '${d.water} ml',
+              if (d.weight != null) '${d.weight} kg',
+              ...d.workouts.map((w) => w.detail),
+            ].join('  '),
+          '(~ = worked out from phone use)',
+        ].join('\n'));
   }
 }
 
