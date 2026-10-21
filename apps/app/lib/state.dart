@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:vault_core/vault_core.dart';
 
 import 'background.dart';
+import 'collect.dart';
 import 'outputs.dart';
 import 'usage_sync.dart';
 
@@ -55,6 +56,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
     } catch (_) {
       // Screen time is optional; never block syncing on it.
+    }
+    if (Platform.isAndroid) {
+      // Money and health are optional too.
+      try {
+        await collectSms(store);
+        await collectHealth(store);
+        notifyListeners();
+      } catch (_) {}
     }
     await sync();
   }
