@@ -75,7 +75,18 @@ class MainActivity : FlutterActivity() {
                 "requestAccess" -> {
                     if (!Health.available(this)) return@setMethodCallHandler result.success(false)
                     pendingHealth = result
-                    startActivityForResult(Health.requestIntent(this), REQUEST_HEALTH)
+                    try {
+                        startActivityForResult(Health.requestIntent(this), REQUEST_HEALTH)
+                    } catch (e: Exception) {
+                        // No permission screen on this phone: open Health Connect itself.
+                        pendingHealth = null
+                        runCatching { startActivity(Health.settingsIntent()) }
+                        result.success(false)
+                    }
+                }
+                "openSettings" -> {
+                    runCatching { startActivity(Health.settingsIntent()) }
+                    result.success(null)
                 }
                 "days" -> scope.launch {
                     try {
