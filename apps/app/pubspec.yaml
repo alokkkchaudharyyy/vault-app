@@ -13,12 +13,14 @@ dependencies:
   flutter_local_notifications: ^22.3.1
   google_mlkit_text_recognition: ^0.17.1
   home_widget: ^0.10.0
+  http: ^1.6.0
   path: ^1.9.1
   path_provider: ^2.1.6
   record: ^7.1.2
   sherpa_onnx: ^1.13.8
   speech_to_text: ^7.5.0
   timezone: ^0.11.1
+  url_launcher: ^6.3.3
   vault_core:
     path: ../../packages/core
   workmanager: ^0.10.10
