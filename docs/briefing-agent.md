@@ -56,7 +56,16 @@ myvault list overdue
 myvault --json list all --open     # every open task, to match commitments against
 myvault list due                   # deadlines, soonest first
 myvault lists                      # projects are lists
+myvault health                     # sleep, steps, water, weight, workouts (7 days)
+myvault money                      # this month's spending, budget, what recurs
 ```
+
+Plan around the body as well as the list: after a short night (under six
+hours) keep the day lighter and put the hardest work after the first two
+hours. Mention spending only when it matters: over the budget, a recurring
+payment that went up or appeared, or one category far above its usual.
+On the weekly page, add a short **Money** line (spent, top three categories,
+against the budget) and a **Body** line (average sleep, steps, workouts).
 
 If a vault is checked out (see below), read its `Rules.md` first, then
 `Me.md`: every correction they have made, then their goals and how they like
