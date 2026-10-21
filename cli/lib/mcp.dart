@@ -345,6 +345,76 @@ final _tools = <_Tool>[
         .toJson(),
   ),
   _Tool(
+    'money',
+    'The user\'s money for a month, read from their bank and UPI messages on the phone (plus cash they typed in): '
+        'spent, received, budget left, by category, top merchants, every payment, and payments that recur monthly '
+        '(subscriptions, rent). Amounts are rupees.',
+    {
+      'month': _str('YYYY-MM; defaults to this month.'),
+      'items': {'type': 'boolean', 'description': 'Include each payment; default true.'},
+    },
+    (store, a) => {
+      ...store.moneySummary(_s(a, 'month')).toJson(withItems: a['items'] as bool? ?? true),
+      'recurring': [for (final r in store.recurring()) r.toJson()],
+    },
+  ),
+  _Tool(
+    'add_expense',
+    'Record a payment no bank message covers (cash), when the user mentions one.',
+    {
+      'amount': {'type': 'number', 'description': 'Rupees.'},
+      'merchant': _str('Who was paid.'),
+      'category': _str('One of: ${Categories.all.join(', ')}. Guessed from the merchant if left out.'),
+      'note': _str('Anything else.'),
+      'direction': _str('"out" (spent, default) or "in" (received).'),
+    },
+    required: ['amount'],
+    (store, a) => store
+        .addExpense(
+          amount: ((a['amount'] as num) * 100).round(),
+          merchant: _s(a, 'merchant'),
+          category: _s(a, 'category'),
+          note: _s(a, 'note'),
+          direction: _s(a, 'direction') ?? Expense.out,
+        )
+        .toJson(),
+  ),
+  _Tool(
+    'health',
+    'Recent days of health: sleep (from a tracker, or from when the phone was last and first used), steps, water, '
+        'weight and workouts. Plan around how they actually slept.',
+    {
+      'days': {'type': 'integer', 'description': 'How many days back; default 7.'},
+    },
+    (store, a) => [for (final d in store.healthDays(days: a['days'] as int? ?? 7)) d.toJson()],
+  ),
+  _Tool(
+    'log_health',
+    'Log water (ml, added to the day), weight (kg) or a workout (what was done) the user mentions.',
+    {
+      'kind': _str('"water", "weight" or "workout".'),
+      'value': _str('Millilitres, kilograms, or what the workout was.'),
+      'minutes': {'type': 'integer', 'description': 'Workout length, if known.'},
+      'date': _str('The day ($_dateHelp). Defaults to today.'),
+    },
+    required: ['kind', 'value'],
+    (store, a) {
+      final date = _s(a, 'date') == null ? today() : parseDate(_s(a, 'date')!);
+      final value = a['value'] as String;
+      switch (a['kind']) {
+        case 'water':
+          return {'water_ml': store.addWater(int.parse(value), date: date)};
+        case 'weight':
+          store.setHealth(date, HealthKind.weight, double.parse(value));
+          return {'weight_kg': double.parse(value)};
+        case 'workout':
+          return {'id': store.addWorkout(value, minutes: a['minutes'] as int?, date: date)};
+        default:
+          throw TodoException('kind is water, weight or workout');
+      }
+    },
+  ),
+  _Tool(
     'vault_status',
     'The user\'s vault: an optional folder of Markdown notes (it opens in Obsidian) that their diary is filed into. Gives its path on this machine, or a null path if they have none, its git remote, and how many diary entries are waiting to be filed. The vault\'s README.md holds the rules for filing.',
     {},
