@@ -42,7 +42,9 @@ Database openMemoryDb() {
 
 /// Tables that sync. Each has `updated_at` (client clock, used for
 /// last-write-wins), `deleted_at` (tombstone) and `dirty` (needs pushing).
-const syncedTables = ['lists', 'tasks', 'habits', 'habit_checks', 'focus_sessions', 'screen_usage', 'diary', 'pages'];
+const syncedTables = [
+  'lists', 'tasks', 'habits', 'habit_checks', 'focus_sessions', 'screen_usage', 'diary', 'pages', 'expenses', 'health',
+];
 
 const _sync = '''
   created_at TEXT NOT NULL,
@@ -170,6 +172,34 @@ const _migrations = [
     $_sync
   );
   CREATE INDEX pages_kind ON pages(kind, key);
+  ''',
+  // Money: payments read from bank and UPI messages or typed in. `amount` is
+  // in paise; `direction` is 'out' or 'in'. Health: one row per day and kind
+  // for steps, sleep, water and weight, and one per workout.
+  '''
+  CREATE TABLE expenses (
+    id TEXT PRIMARY KEY,
+    at TEXT NOT NULL,
+    date TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    direction TEXT NOT NULL,
+    merchant TEXT,
+    category TEXT,
+    account TEXT,
+    source TEXT,
+    note TEXT,
+    $_sync
+  );
+  CREATE INDEX expenses_date ON expenses(date);
+  CREATE TABLE health (
+    id TEXT PRIMARY KEY,
+    date TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    value REAL,
+    detail TEXT,
+    $_sync
+  );
+  CREATE INDEX health_date ON health(date);
   ''',
 ];
 
