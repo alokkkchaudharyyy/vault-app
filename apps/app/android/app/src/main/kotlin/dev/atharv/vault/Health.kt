@@ -30,8 +30,14 @@ object Health {
 
     private fun client(context: Context) = HealthConnectClient.getOrCreate(context)
 
-    suspend fun hasAccess(context: Context): Boolean =
-        available(context) && client(context).permissionController.getGrantedPermissions().containsAll(permissions)
+    suspend fun granted(context: Context): Set<String> =
+        if (available(context)) client(context).permissionController.getGrantedPermissions() else emptySet()
+
+    /** Connected when at least one of steps and sleep may be read. */
+    suspend fun hasAccess(context: Context): Boolean = granted(context).any { it in permissions }
+
+    /** Health Connect's own settings, where access and sources are managed. */
+    fun settingsIntent(): Intent = Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
 
     /** The screen that asks for [permissions]. */
     fun requestIntent(context: Context): Intent =
@@ -48,8 +54,9 @@ object Health {
         val end = LocalDate.parse(to).plusDays(1).atStartOfDay()
         val out = sortedMapOf<String, MutableMap<String, Any>>()
         val c = client(context)
+        val granted = granted(context)
 
-        for (slice in c.aggregateGroupByPeriod(
+        if (HealthPermission.getReadPermission(StepsRecord::class) in granted) for (slice in c.aggregateGroupByPeriod(
             AggregateGroupByPeriodRequest(
                 metrics = setOf(StepsRecord.COUNT_TOTAL),
                 timeRangeFilter = TimeRangeFilter.between(start, end),
@@ -60,7 +67,7 @@ object Health {
             out.getOrPut(slice.startTime.toLocalDate().toString()) { mutableMapOf() }["steps"] = steps
         }
 
-        val sleeps = c.readRecords(
+        val sleeps = if (HealthPermission.getReadPermission(SleepSessionRecord::class) !in granted) emptyList() else c.readRecords(
             ReadRecordsRequest(
                 SleepSessionRecord::class,
                 TimeRangeFilter.between(start.minusDays(1).atZone(zone).toInstant(), end.atZone(zone).toInstant()),
