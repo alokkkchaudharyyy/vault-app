@@ -562,7 +562,7 @@ void main() {
     expect(state.store.getMeta(welcomedKey), '1');
   });
 
-  testWidgets('Brain: says how to connect the notes, then shows the morning page, goals and projects', (tester) async {
+  testWidgets('Brain: says how to connect the notes, then shows the morning page, the motto and projects', (tester) async {
     await pump(tester, const Size(390, 800), page: 'Brain');
     expect(find.byKey(const ValueKey('brain-connect')), findsOneWidget);
 
@@ -580,7 +580,8 @@ void main() {
     expect(find.byKey(const ValueKey('brain-connect')), findsNothing);
     expect(find.text('This morning'), findsOneWidget);
     expect(find.text('07:00–08:00 Workout', findRichText: true), findsOneWidget);
-    expect(find.text('Land an ML internship'), findsOneWidget);
+    expect(find.text('Land an ML internship'), findsNothing);
+    expect(find.text('Grind Hard'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Helios'), 200);
     await tester.tap(find.text('Helios'));
     await tester.pumpAndSettle();
