@@ -1,6 +1,8 @@
 export 'src/dates.dart';
 export 'src/db.dart';
+export 'src/health.dart';
 export 'src/models.dart';
+export 'src/money.dart';
 export 'src/planning.dart';
 export 'src/store.dart';
 export 'src/supabase_remote.dart';
