@@ -25,6 +25,13 @@ Future<bool> requestSmsAccess() => _ask(sms, 'requestAccess');
 Future<bool> healthAvailable() => _ask(healthConnect, 'available');
 Future<bool> hasHealthAccess() => _ask(healthConnect, 'hasAccess');
 Future<bool> requestHealthAccess() => _ask(healthConnect, 'requestAccess');
+Future<void> openHealthSettings() async {
+  try {
+    await healthConnect.invokeMethod('openSettings');
+  } on MissingPluginException {
+    // Not a phone.
+  }
+}
 
 /// Stores payments from messages received since the last read (the last 90
 /// days the first time). Returns how many were new.
