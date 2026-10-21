@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 0.2.0+3
 
 environment:
-  sdk: ^3.13.5
+  sdk: ^3.13.4
 
 dependencies:
   device_calendar_plus: ^0.10.1
