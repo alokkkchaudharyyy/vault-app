@@ -85,9 +85,13 @@ abstract final class Categories {
   static const fun = 'Fun';
   static const education = 'Education';
   static const transfers = 'Transfers';
+
+  /// Money moved between the user's own accounts: neither spent nor
+  /// received, so it is left out of every total.
+  static const own = 'Own transfer';
   static const other = 'Other';
 
-  static const all = [food, groceries, transport, shopping, bills, subscriptions, health, fun, education, transfers, other];
+  static const all = [food, groceries, transport, shopping, bills, subscriptions, health, fun, education, transfers, own, other];
 }
 
 const _categoryHints = <String, List<String>>{
@@ -155,6 +159,16 @@ const _banks = {
 final _amount = RegExp(r'(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)', caseSensitive: false);
 final _debit = RegExp(r'\b(debited|spent|paid|sent|withdrawn|purchase|debit|dr\b|txn of|used at|transferred)', caseSensitive: false);
 final _credit = RegExp(r'\b(credited|received|deposited|refund(ed)?|cr\b|credit)\b', caseSensitive: false);
+final _ownWords = RegExp(
+  r'\b(to self|self[- ]transfer|own account|to your (?:own )?(?:a/?c|account)|between your accounts|'
+  r'sweep|fd (?:booked|created|opened)|fixed deposit|transferred to your)\b',
+  caseSensitive: false,
+);
+
+/// Whether the message itself says the money moved between the user's own
+/// accounts (or into their own deposit).
+bool saysOwnTransfer(String body) => _ownWords.hasMatch(body);
+
 final _skip = RegExp(
   r'\b(otp|one time password|is due|due on|due date|minimum amount|min\.? amt|offer|pre-?approved|loan|'
   r'cashback of upto|win |winner|failed|declined|unsuccessful|requested|request money|will be debited|'
@@ -236,13 +250,19 @@ class MoneySummary {
   /// Paise, if a monthly budget is set.
   final int? budget;
 
-  int get spent => items.where((e) => e.spent).fold(0, (s, e) => s + e.amount);
-  int get received => items.where((e) => !e.spent).fold(0, (s, e) => s + e.amount);
+  /// Everything but money moved between the user's own accounts.
+  Iterable<Expense> get counted => items.where((e) => e.category != Categories.own);
+
+  /// How many own transfers the month had, left out of the totals.
+  int get ownTransfers => items.length - counted.length;
+
+  int get spent => counted.where((e) => e.spent).fold(0, (s, e) => s + e.amount);
+  int get received => counted.where((e) => !e.spent).fold(0, (s, e) => s + e.amount);
 
   /// Spending by category, biggest first.
   List<(String, int)> get byCategory {
     final m = <String, int>{};
-    for (final e in items.where((e) => e.spent)) {
+    for (final e in counted.where((e) => e.spent)) {
       m.update(e.category, (v) => v + e.amount, ifAbsent: () => e.amount);
     }
     return m.entries.map((e) => (e.key, e.value)).toList()..sort((a, b) => b.$2.compareTo(a.$2));
@@ -251,7 +271,7 @@ class MoneySummary {
   /// Spending by merchant, biggest first.
   List<(String, int)> get topMerchants {
     final m = <String, int>{};
-    for (final e in items.where((e) => e.spent && e.merchant != null)) {
+    for (final e in counted.where((e) => e.spent && e.merchant != null)) {
       m.update(e.merchant!, (v) => v + e.amount, ifAbsent: () => e.amount);
     }
     return m.entries.map((e) => (e.key, e.value)).toList()..sort((a, b) => b.$2.compareTo(a.$2));
@@ -265,7 +285,8 @@ class MoneySummary {
         if (budget != null) 'budget_left': rupees(budget! - spent),
         'by_category': {for (final (c, v) in byCategory) c: rupees(v)},
         'top_merchants': {for (final (m, v) in topMerchants.take(8)) m: rupees(v)},
-        if (withItems) 'items': [for (final e in items) e.toJson()],
+        if (ownTransfers > 0) 'own_transfers_left_out': ownTransfers,
+        if (withItems) 'items': [for (final e in counted) e.toJson()],
       };
 }
 
@@ -313,8 +334,12 @@ extension Money on Store {
         if (p == null) continue;
         final id = 'sms-${_hash('${m.sender}|${m.at.millisecondsSinceEpoch}|${m.body}')}';
         if (db.select('SELECT 1 FROM expenses WHERE id = ?', [id]).isNotEmpty) continue;
+        final remembered = p.merchant == null ? null : _remembered[p.merchant!.toLowerCase()];
+        final category = saysOwnTransfer(m.body)
+            ? Categories.own
+            : remembered ?? (p.direction == Expense.into ? Categories.transfers : _categoryFor(p.merchant, m.body));
         _put(id, at: m.at, amount: p.amount, direction: p.direction, merchant: p.merchant, account: p.account,
-            category: p.direction == Expense.into ? Categories.transfers : _categoryFor(p.merchant, m.body), source: 'sms');
+            category: category, source: 'sms');
         added++;
       }
       db.execute('COMMIT');
@@ -322,7 +347,37 @@ extension Money on Store {
       db.execute('ROLLBACK');
       rethrow;
     }
+    if (added > 0) markOwnTransfers();
     return added;
+  }
+
+  /// Finds money that left one of the user's accounts and arrived in another
+  /// of them (same amount, two different accounts, within two hours) and
+  /// marks both sides as an own transfer. A friend paying back lands in the
+  /// account it left, so it is not caught. Returns how many pairs were found.
+  int markOwnTransfers({Duration within = const Duration(hours: 2)}) {
+    final rows = db
+        .select("$_select AND account IS NOT NULL AND category != ? ORDER BY at", [Categories.own])
+        .map(Expense.fromRow)
+        .toList();
+    final used = <String>{};
+    var pairs = 0;
+    for (final out in rows.where((e) => e.spent)) {
+      if (used.contains(out.id)) continue;
+      final match = rows.where((e) =>
+          !e.spent &&
+          !used.contains(e.id) &&
+          e.amount == out.amount &&
+          e.account != out.account &&
+          e.at.difference(out.at).abs() <= within);
+      if (match.isEmpty) continue;
+      final into = match.first;
+      used..add(out.id)..add(into.id);
+      _touch(out.id, {'category': Categories.own});
+      _touch(into.id, {'category': Categories.own});
+      pairs++;
+    }
+    return pairs;
   }
 
   /// A payment typed in: cash, or one no message covered.
@@ -413,7 +468,7 @@ extension Money on Store {
   List<Recurring> recurring({int months = 4}) {
     final from = addDays(today(), -31 * months);
     final groups = <String, List<Expense>>{};
-    for (final e in expenses(from: from).where((e) => e.spent && e.merchant != null)) {
+    for (final e in expenses(from: from).where((e) => e.spent && e.merchant != null && e.category != Categories.own)) {
       groups.putIfAbsent(e.merchant!, () => []).add(e);
     }
     final out = <Recurring>[];
