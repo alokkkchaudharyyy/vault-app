@@ -2,6 +2,11 @@
 
 <img src="assets/logo.svg" alt="Vault logo" width="96">
 
+> **Credits:** Vault was created by [Atharv Tiwari](https://github.com/Atharv-tw)
+> ([Atharv-tw/vault-app](https://github.com/Atharv-tw/vault-app)) and is used
+> here with his permission under the [MIT License](LICENSE). This copy is
+> developed further by [alokkkchaudharyyy](https://github.com/alokkkchaudharyyy).
+
 A private second brain that your agents share. You talk or write to a diary
 whenever something happens; every night your agent files it into a memory of
 plain Markdown notes (who you are, your goals, projects, people, what you
