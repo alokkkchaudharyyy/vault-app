@@ -11,16 +11,32 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.Telephony
 import android.os.Process
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class MainActivity : FlutterActivity() {
     // Screenshots: a permission prompt or a trash request waiting for the user.
     private var pendingAccess: MethodChannel.Result? = null
     private var pendingTrash: MethodChannel.Result? = null
+
+    // Money and health: a permission screen waiting for the user.
+    private var pendingSms: MethodChannel.Result? = null
+    private var pendingHealth: MethodChannel.Result? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
 
     // Something shared to the app: read once, handed to Dart.
     private var shareChannel: MethodChannel? = null
@@ -37,6 +53,38 @@ class MainActivity : FlutterActivity() {
                 } else {
                     result.notImplemented()
                 }
+            }
+        }
+        // Bank and UPI messages, read on the phone to track spending.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "todo/sms").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasAccess" -> result.success(hasSmsAccess())
+                "requestAccess" -> {
+                    if (hasSmsAccess()) return@setMethodCallHandler result.success(true)
+                    pendingSms = result
+                    requestPermissions(arrayOf(android.Manifest.permission.READ_SMS), REQUEST_SMS)
+                }
+                "inbox" -> result.success(smsSince((call.argument<Number>("since") ?: 0).toLong()))
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "todo/health").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "available" -> result.success(Health.available(this))
+                "hasAccess" -> scope.launch { result.success(runCatching { Health.hasAccess(this@MainActivity) }.getOrDefault(false)) }
+                "requestAccess" -> {
+                    if (!Health.available(this)) return@setMethodCallHandler result.success(false)
+                    pendingHealth = result
+                    startActivityForResult(Health.requestIntent(this), REQUEST_HEALTH)
+                }
+                "days" -> scope.launch {
+                    try {
+                        result.success(Health.days(this@MainActivity, call.argument<String>("from")!!, call.argument<String>("to")!!))
+                    } catch (e: Exception) {
+                        result.error("health", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
             }
         }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "todo/shots").setMethodCallHandler { call, result ->
@@ -137,6 +185,27 @@ class MainActivity : FlutterActivity() {
         return share
     }
 
+    private fun hasSmsAccess() =
+        checkSelfPermission(android.Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+
+    /** Received messages after [since] (epoch ms), oldest first, as {sender, body, date}. */
+    private fun smsSince(since: Long): List<Map<String, Any>> {
+        val out = ArrayList<Map<String, Any>>()
+        if (!hasSmsAccess()) return out
+        contentResolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI,
+            arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
+            "${Telephony.Sms.DATE} > ?",
+            arrayOf(since.toString()),
+            "${Telephony.Sms.DATE} ASC",
+        )?.use { c ->
+            while (c.moveToNext()) {
+                out.add(mapOf("sender" to (c.getString(0) ?: ""), "body" to (c.getString(1) ?: ""), "date" to c.getLong(2)))
+            }
+        }
+        return out
+    }
+
     private fun imagePermission() =
         if (Build.VERSION.SDK_INT >= 33) android.Manifest.permission.READ_MEDIA_IMAGES
         else android.Manifest.permission.READ_EXTERNAL_STORAGE
@@ -174,6 +243,10 @@ class MainActivity : FlutterActivity() {
             pendingAccess?.success(hasImageAccess())
             pendingAccess = null
         }
+        if (requestCode == REQUEST_SMS) {
+            pendingSms?.success(hasSmsAccess())
+            pendingSms = null
+        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -182,6 +255,11 @@ class MainActivity : FlutterActivity() {
         if (requestCode == REQUEST_TRASH) {
             pendingTrash?.success(resultCode == RESULT_OK)
             pendingTrash = null
+        }
+        if (requestCode == REQUEST_HEALTH) {
+            val pending = pendingHealth
+            pendingHealth = null
+            scope.launch { pending?.success(runCatching { Health.hasAccess(this@MainActivity) }.getOrDefault(false)) }
         }
     }
 
@@ -257,5 +335,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val REQUEST_IMAGES = 4101
         private const val REQUEST_TRASH = 4102
+        private const val REQUEST_SMS = 4103
+        private const val REQUEST_HEALTH = 4104
     }
 }
