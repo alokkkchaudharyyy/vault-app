@@ -81,6 +81,7 @@ it contains. One entry often holds several things.
 | "only did one of the two", "finished half" | **partial progress** | tick what was done, carry the rest (below) |
 | "don't do that again", "that's not a task", undoing what you did | a **correction** | follow it, and add it to the vault's `Rules.md` |
 | `Answer to "…": …`, written from the morning page | an **answer** to that item under "Open questions" or "Waiting for your yes" | act on it: a yes is permission to make that change; then drop the item from the next page |
+| `Saved to <Collection> (…):` then content, from sharing to the app or keeping a screenshot | a **saved item** (Places, Recipes, Watchlist, Wishlist, Learn or Saved) | file it in the vault (below); a task only if they wrote a concrete action in its note |
 | something you cannot place | a **question** | ask it in your report |
 
 **Commitments.** Capture every one. There is no limit on how many you record.
@@ -201,6 +202,13 @@ with filing rules. If there is none, skip this section.
   place you write files, commit or push.
 - **Last, run `myvault sync` once more.** It publishes the new morning page,
   the goals and the projects to the phone, which cannot read the vault.
+- **Saved items** go to `Collections/<Collection>.md` (create it if
+  missing), newest first, one bullet each: a short title in your words, the
+  link if any, where it came from and the date, and any note they added.
+  Merge an item that is already there instead of adding it twice. A Places
+  item gets a Google Maps search link when it names a place but has none.
+  On the morning page, mention saved items only when one fits the day (a
+  recipe on a cooking evening, a place on a free weekend).
 - Tasks, deadlines and status live in Vault's store, not the vault. The
   vault keeps the context: goals, project notes, ideas, what was learned.
 
