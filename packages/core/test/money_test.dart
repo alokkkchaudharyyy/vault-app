@@ -90,4 +90,46 @@ void main() {
       expect(store.recurring(months: 6).map((r) => r.merchant), ['Netflix']);
     });
   });
+
+  group('own transfers', () {
+    late Store store;
+    setUp(() => store = Store(openMemoryDb()));
+
+    test('money leaving one account and arriving in another is left out of the totals', () {
+      final at = DateTime(2026, 10, 22, 10);
+      store.importSms([
+        (sender: 'AD-HDFCBK', body: 'Rs.10,000.00 debited from A/c XX1234 to VPA alok.c@oksbi (UPI Ref 1)', at: at),
+        (sender: 'AD-SBIUPI', body: 'Your A/C X9876 credited by Rs 10,000.00 by alok.c@okhdfcbank (Ref 1)', at: at.add(const Duration(minutes: 1))),
+        (sender: 'AD-HDFCBK', body: 'Rs.300.00 debited from A/c XX1234 to VPA zomato@icici (UPI Ref 2)', at: at),
+      ]);
+      final s = store.moneySummary('2026-10');
+      expect(s.spent, 30000);
+      expect(s.received, 0);
+      expect(s.ownTransfers, 2);
+    });
+
+    test('a friend paying back into the same account is not an own transfer', () {
+      final at = DateTime(2026, 10, 22, 10);
+      store.importSms([
+        (sender: 'AD-HDFCBK', body: 'Rs.500.00 debited from A/c XX1234 to VPA rahul.s@okaxis (UPI Ref 1)', at: at),
+        (sender: 'AD-HDFCBK', body: 'A/c XX1234 credited with Rs.500.00 from rahul.s@okaxis (UPI Ref 2)', at: at.add(const Duration(minutes: 30))),
+      ]);
+      expect(store.moneySummary('2026-10').ownTransfers, 0);
+    });
+
+    test('"to self" in the message is enough, and marking a payee sticks', () {
+      store.importSms([
+        (sender: 'AD-ICICIB', body: 'Rs 2,000 debited from A/c XX5555 to self via IMPS Ref 9', at: DateTime(2026, 10, 1)),
+        (sender: 'AD-HDFCBK', body: 'Rs.700.00 debited from A/c XX1234 to VPA alokpaytm@paytm (UPI Ref 3)', at: DateTime(2026, 10, 2)),
+      ]);
+      final paytm = store.expenses().firstWhere((e) => e.merchant == 'Alokpaytm');
+      store.setExpenseCategory(paytm.id, Categories.own);
+      store.importSms([
+        (sender: 'AD-HDFCBK', body: 'Rs.900.00 debited from A/c XX1234 to VPA alokpaytm@paytm (UPI Ref 4)', at: DateTime(2026, 10, 9)),
+      ]);
+      final s = store.moneySummary('2026-10');
+      expect(s.spent, 0);
+      expect(s.ownTransfers, 3);
+    });
+  });
 }
