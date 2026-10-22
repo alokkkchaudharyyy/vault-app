@@ -380,6 +380,28 @@ final _tools = <_Tool>[
         .toJson(),
   ),
   _Tool(
+    'set_expense',
+    'Fix a payment read from a bank message: move it to the right category (later payments to the same place '
+        'follow), or remove it when it is not spending at all.',
+    {
+      'id': _str('The payment id, from money.'),
+      'category': _str('One of: ${Categories.all.join(', ')}. "${Categories.own}" leaves it out of the totals.'),
+      'not_expense': {'type': 'boolean', 'description': 'True to remove it (a misread message).'},
+    },
+    required: ['id'],
+    (store, a) {
+      final id = a['id'] as String;
+      if (a['not_expense'] == true) {
+        store.deleteExpense(id);
+        return {'removed': id};
+      }
+      final category = _s(a, 'category');
+      if (category == null || !Categories.all.contains(category)) throw TodoException('Say a category: ${Categories.all.join(', ')}');
+      store.setExpenseCategory(id, category);
+      return store.expense(id)!.toJson();
+    },
+  ),
+  _Tool(
     'health',
     'Recent days of health: sleep (from a tracker, or from when the phone was last and first used), steps, water, '
         'weight and workouts. Plan around how they actually slept.',
