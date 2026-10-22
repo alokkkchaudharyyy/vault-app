@@ -2,6 +2,9 @@ package dev.atharv.vault
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
@@ -26,12 +29,27 @@ object Health {
     )
 
     fun available(context: Context) =
-        HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+            HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
 
     private fun client(context: Context) = HealthConnectClient.getOrCreate(context)
 
-    suspend fun granted(context: Context): Set<String> =
-        if (available(context)) client(context).permissionController.getGrantedPermissions() else emptySet()
+    /**
+     * From Android 14 health permissions are ordinary runtime permissions, so
+     * ask the system first; the client call fails on some Samsung builds.
+     */
+    suspend fun granted(context: Context): Set<String> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return permissions.filter { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }.toSet()
+        }
+        if (!available(context)) return emptySet()
+        return try {
+            client(context).permissionController.getGrantedPermissions()
+        } catch (e: Exception) {
+            Log.w("G.ONE", "Health Connect permissions", e)
+            emptySet()
+        }
+    }
 
     /** Connected when at least one of steps and sleep may be read. */
     suspend fun hasAccess(context: Context): Boolean = granted(context).any { it in permissions }
