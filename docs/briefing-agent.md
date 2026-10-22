@@ -67,6 +67,22 @@ payment that went up or appeared, or one category far above its usual.
 On the weekly page, add a short **Money** line (spent, top three categories,
 against the budget) and a **Body** line (average sleep, steps, workouts).
 
+Tidy the money every night, so the phone's Money tab reads true. Go through
+`myvault --json money` items from the last two days:
+
+- **Other** with a clear place behind it: `myvault money set ID Food` (or the
+  right category). A small card payment to a person's name (under ₹200) is
+  usually a street shop: Food if near a meal, else leave it.
+- Money moved between the user's own accounts or pockets, a card bill paid,
+  a wallet topped up: `myvault money set ID "Own transfer"`. If it is their
+  own name showing up as a payee, `myvault money me "THE NAME"` once.
+- A message misread as a payment: `myvault money remove ID`.
+- Leave **People** alone unless the diary says what it was for.
+
+Later payments to the same place follow each fix, so the work shrinks. Add a
+`## Money` part to the morning page only when something stands out (a big
+day, a new subscription, over budget), in one or two lines.
+
 If a vault is checked out (see below), read its `Rules.md` first, then
 `Me.md`: every correction they have made, then their goals and how they like
 their day. Both win over general advice in this file, and `Rules.md` wins
