@@ -25,6 +25,7 @@ const categoryIcons = {
   Categories.health: Icons.favorite_rounded,
   Categories.fun: Icons.celebration_rounded,
   Categories.education: Icons.school_rounded,
+  Categories.people: Icons.people_alt_rounded,
   Categories.transfers: Icons.swap_horiz_rounded,
   Categories.own: Icons.sync_alt_rounded,
   Categories.other: Icons.more_horiz_rounded,
@@ -34,6 +35,9 @@ class _MoneyPageState extends State<MoneyPage> {
   String _month = today().substring(0, 7);
   bool? _access;
   bool _reading = false;
+
+  /// The list shows money spent, or with this, money received.
+  bool _received = false;
 
   @override
   void initState() {
@@ -72,7 +76,7 @@ class _MoneyPageState extends State<MoneyPage> {
 
     final byDay = <String, List<Expense>>{};
     // Money moved between your own accounts is neither spent nor received.
-    for (final e in s.counted) {
+    for (final e in s.counted.where((e) => e.spent != _received)) {
       byDay.putIfAbsent(e.date, () => []).add(e);
     }
 
@@ -162,7 +166,33 @@ class _MoneyPageState extends State<MoneyPage> {
                   ),
                 ),
               ],
+              if (s.topMerchants.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('Where it went', style: t.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Card(
+                  child: Column(
+                    children: [
+                      for (final (m, v) in s.topMerchants.take(5))
+                        ListTile(
+                          dense: true,
+                          title: Text(m, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          trailing: Text(rupees(v), style: t.labelLarge),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
+              if (s.counted.isNotEmpty)
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Spent')),
+                    ButtonSegment(value: true, label: Text('Received')),
+                  ],
+                  selected: {_received},
+                  onSelectionChanged: (v) => setState(() => _received = v.first),
+                ),
               if (s.ownTransfers > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -196,7 +226,11 @@ class _MoneyPageState extends State<MoneyPage> {
                             backgroundColor: AppColors.raised,
                             child: Icon(categoryIcons[e.category] ?? Icons.more_horiz_rounded, color: AppColors.ink, size: 20),
                           ),
-                          title: Text(e.merchant ?? e.note ?? e.category, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          title: Text(
+                            e.merchant ?? e.note ?? (e.spent ? 'Card payment' : 'Money in'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           subtitle: Text(
                             [e.category, ?e.account, '${e.at.hour.toString().padLeft(2, '0')}:${e.at.minute.toString().padLeft(2, '0')}'].join(' · '),
                             style: t.bodySmall?.copyWith(color: AppColors.muted),
