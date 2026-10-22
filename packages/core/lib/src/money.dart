@@ -86,18 +86,21 @@ abstract final class Categories {
   static const education = 'Education';
   static const transfers = 'Transfers';
 
+  /// Money sent to friends and family over UPI.
+  static const people = 'People';
+
   /// Money moved between the user's own accounts: neither spent nor
   /// received, so it is left out of every total.
   static const own = 'Own transfer';
   static const other = 'Other';
 
-  static const all = [food, groceries, transport, shopping, bills, subscriptions, health, fun, education, transfers, own, other];
+  static const all = [food, groceries, transport, shopping, bills, subscriptions, health, fun, education, people, transfers, own, other];
 }
 
 const _categoryHints = <String, List<String>>{
   Categories.food: [
     'swiggy', 'zomato', 'eatsure', 'dominos', 'domino', 'pizza', 'mcdonald', 'kfc', 'burger', 'starbucks', 'cafe',
-    'restaurant', 'chai', 'tea', 'coffee', 'bakery', 'dhaba', 'food', 'biryani', 'haldiram', 'subway',
+    'restaurant', 'chai', 'tea', 'coffee', 'canteen', 'mess', 'sweets', 'juice', 'bakery', 'dhaba', 'food', 'biryani', 'haldiram', 'subway',
   ],
   Categories.groceries: [
     'blinkit', 'zepto', 'instamart', 'bigbasket', 'jiomart', 'dmart', 'grofers', 'kirana', 'supermarket', 'grocery',
@@ -105,30 +108,34 @@ const _categoryHints = <String, List<String>>{
   ],
   Categories.transport: [
     'uber', 'ola', 'rapido', 'irctc', 'metro', 'redbus', 'indigo', 'airindia', 'akasa', 'spicejet', 'fastag',
-    'petrol', 'fuel', 'hpcl', 'iocl', 'bpcl', 'indian oil', 'parking', 'yulu', 'namma yatri', 'makemytrip', 'cleartrip',
+    'petrol', 'fuel', 'transport', 'ncrtc', 'dmrc', 'auto', 'hpcl', 'iocl', 'bpcl', 'indian oil', 'parking', 'yulu', 'namma yatri', 'makemytrip', 'cleartrip',
   ],
   Categories.shopping: [
     'amazon', 'flipkart', 'myntra', 'ajio', 'meesho', 'nykaa', 'tata cliq', 'croma', 'decathlon', 'ikea',
-    'lenskart', 'reliance digital', 'shoppers stop', 'zudio', 'westside', 'h&m', 'uniqlo',
+    'lenskart', 'reliance digital', 'shoppers stop', 'zudio', 'westside', 'h&m', 'uniqlo', 'shopping', 'store', 'mart',
   ],
   Categories.bills: [
     'electricity', 'bescom', 'tneb', 'msedcl', 'tata power', 'adani', 'bill', 'recharge', 'jio', 'airtel', 'vodafone',
-    'vi ', 'bsnl', 'broadband', 'act fibernet', 'gas', 'water', 'rent', 'maintenance', 'insurance', 'lic',
+    'vi', 'bsnl', 'broadband', 'act fibernet', 'gas', 'water', 'rent', 'maintenance', 'insurance', 'lic',
   ],
   Categories.subscriptions: [
     'netflix', 'spotify', 'prime', 'hotstar', 'jiocinema', 'youtube', 'google play', 'apple', 'icloud', 'chatgpt',
     'openai', 'anthropic', 'claude', 'notion', 'github', 'zee5', 'sonyliv', 'linkedin', 'canva', 'subscription',
+    'google', 'microsoft', 'godaddy', 'render', 'vercel', 'bunny', 'hostinger', 'aws', 'digitalocean', 'cloudflare',
+    'kukufm', 'audible', 'autopay',
   ],
-  Categories.health: ['pharmacy', 'apollo', '1mg', 'pharmeasy', 'netmeds', 'hospital', 'clinic', 'medical', 'gym', 'cult', 'doctor', 'lab'],
+  Categories.health: ['pharmacy', 'apollo', '1mg', 'pharmeasy', 'netmeds', 'hospital', 'clinic', 'medical', 'medicos', 'medico', 'chemist', 'gym', 'cult', 'doctor', 'lab'],
   Categories.fun: ['bookmyshow', 'pvr', 'inox', 'cinepolis', 'steam', 'playstation', 'district', 'paytm insider', 'concert'],
   Categories.education: ['udemy', 'coursera', 'byju', 'unacademy', 'physicswallah', 'college', 'university', 'school', 'fees', 'books'],
 };
 
 /// The category [merchant] and the message most likely belong in.
 String guessCategory(String? merchant, [String text = '']) {
-  final hay = ' ${merchant ?? ''} $text '.toLowerCase();
+  final hay = ' ${merchant ?? ''} $text '.toLowerCase().replaceAll(RegExp(r'[^a-z0-9&]+'), ' ');
   for (final MapEntry(key: c, value: words) in _categoryHints.entries) {
-    if (words.any(hay.contains)) return c;
+    // Short hints are whole words ("lic" is not in "slice", "vi" not in
+    // "via"); longer ones start a word ("swiggy" is in "swiggyinstamart").
+    if (words.any((w) => hay.contains(w.length <= 4 ? ' $w ' : ' $w'))) return c;
   }
   return Categories.other;
 }
@@ -140,12 +147,17 @@ class ParsedSms {
     required this.direction,
     this.merchant,
     this.account,
+    this.toPerson = false,
   });
 
   final int amount;
   final String direction;
   final String? merchant;
   final String? account;
+
+  /// Sent over UPI from a bank account rather than spent on a card: most
+  /// often a person, sometimes a shop's QR code.
+  final bool toPerson;
 }
 
 /// Bank codes in sender ids ("AD-HDFCBK-S") and their short names.
@@ -153,7 +165,8 @@ const _banks = {
   'HDFC': 'HDFC', 'SBI': 'SBI', 'ICICI': 'ICICI', 'AXIS': 'Axis', 'KOTAK': 'Kotak', 'PNB': 'PNB', 'BOI': 'BOI',
   'BOB': 'BoB', 'PAYTM': 'Paytm', 'IDFC': 'IDFC', 'YESB': 'Yes', 'INDUS': 'IndusInd', 'AUBANK': 'AU',
   'FEDBNK': 'Federal', 'CANBNK': 'Canara', 'UNION': 'Union', 'JIOPB': 'Jio', 'AIRBNK': 'Airtel', 'CITI': 'Citi',
-  'SCB': 'StanChart', 'IOB': 'IOB', 'UCO': 'UCO', 'RBL': 'RBL', 'SLICE': 'slice', 'ONECARD': 'OneCard',
+  'SCB': 'StanChart', 'IOB': 'IOB', 'UCO': 'UCO', 'RBL': 'RBL', 'SLICE': 'slice', 'SLCBNK': 'slice', 'ONECARD': 'OneCard',
+  'MOBIKW': 'MobiKwik',
 };
 
 final _amount = RegExp(r'(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)', caseSensitive: false);
@@ -161,7 +174,8 @@ final _debit = RegExp(r'\b(debited|spent|paid|sent|withdrawn|purchase|debit|dr\b
 final _credit = RegExp(r'\b(credited|received|deposited|refund(ed)?|cr\b|credit)\b', caseSensitive: false);
 final _ownWords = RegExp(
   r'\b(to self|self[- ]transfer|own account|to your (?:own )?(?:a/?c|account)|between your accounts|'
-  r'sweep|fd (?:booked|created|opened)|fixed deposit|transferred to your)\b',
+  r'sweep|fd (?:booked|created|opened)|fixed deposit|transferred to your|you transferred|you added|from credit card|'
+  r'repayment of|credited to your card)\b',
   caseSensitive: false,
 );
 
@@ -172,21 +186,41 @@ bool saysOwnTransfer(String body) => _ownWords.hasMatch(body);
 final _skip = RegExp(
   r'\b(otp|one time password|is due|due on|due date|minimum amount|min\.? amt|offer|pre-?approved|loan|'
   r'cashback of upto|win |winner|failed|declined|unsuccessful|requested|request money|will be debited|'
-  r'scheduled|mandate.*(created|registered)|statement|bill generated|e-?statement|avl limit only|reward points)',
+  r'scheduled|mandate.*(created|registered)|statement|bill generated|e-?statement|avl limit only|reward points|'
+  // A payout announced before it lands (the bank's own message follows),
+  // a card limit set up, a pension contribution.
+  r'will be credited|auto ?pay facility|activated|pran\b|contribution of)',
   caseSensitive: false,
 );
-final _account = RegExp(r'(?:a/?c|acct|account|card)\s*(?:no\.?\s*)?(?:ending\s*(?:with\s*)?)?[x*•.]*\s*(\d{3,6})', caseSensitive: false);
-final _vpa = RegExp(r'\b([a-z0-9][a-z0-9._-]{1,40})@[a-z]{2,20}\b', caseSensitive: false);
+final _account = RegExp(r'(?<!sender )(?:a/?c|acct|account|card|credited to)\s*(?:no\.?\s*)?(?:ending\s*(?:with\s*)?)?[x*•.]*\s*(\d{3,6})', caseSensitive: false);
+// Not an email address: "fraudalerts@mobikwik.com".
+final _vpa = RegExp(r'\b([a-z0-9][a-z0-9._-]{1,40})@[a-z]{2,20}\b(?!\.)', caseSensitive: false);
+
+/// "You transferred Rs. 50 from nexera new to ..." names a pocket the user
+/// owns.
+final _ownPocket = RegExp(r'\byou transferred rs\.? [\d,.]+ from (.+?) to\b', caseSensitive: false);
 final _party = RegExp(
   r'(?:\bto\b|\bat\b|\btowards\b|\bby\b|\bfrom\b|trf to|info:?)\s+(?:vpa\s+|upi\s+|a/c\s+)?'
-  r"([A-Za-z][A-Za-z0-9 .&'_-]{1,40}?)"
-  r'(?=\s+(?:on|ref|upi|via|txn|avl|bal|using|for|dated|thru|through|not)\b|[.,;\n]|$)',
+  r"([A-Za-z][A-Za-z0-9 .&'_*+-]{1,60}?)"
+  r'(?=\s+(?:on|ref|upi|via|txn|avl|bal|using|for|dated|thru|through|not)\b|\s*[(.,;\n]|$)',
   caseSensitive: false,
 );
+final _p2p = RegExp(r'\bsent from\b|\bdr\.? inr [\d,.]+ on [\d/]+ to .*; ?upi', caseSensitive: false);
+final _business = RegExp(
+  r'\b(services|online|india|tech|technologies|pvt|private|ltd|limited|enterprises?|traders|store|stores|mart|'
+  r'solutions|retail|foods?|industries|corporation|company|co)\b',
+  caseSensitive: false,
+);
+final _card = RegExp(r'credit card|cardtxn|debit card|\bcard xx', caseSensitive: false);
+final _neftSender = RegExp(r'\bby sender\s+([A-Za-z][A-Za-z .&]{2,60}?)\s*(?:,|;|$)', caseSensitive: false);
+
+/// Characters some banks put inside numbers: "Rs. 1,‌00,‌000".
+final _invisible = RegExp('[​-‏⁠﻿]');
 
 /// Reads a bank or UPI text message from [sender]; null when it is not a
 /// completed payment (an OTP, an offer, a bill reminder, a failed payment).
 ParsedSms? parseBankSms(String sender, String body) {
+  body = body.replaceAll(_invisible, '');
   // People's numbers are not banks; that is how forwarded scams look.
   if (RegExp(r'^\+?\d{6,}$').hasMatch(sender.trim())) return null;
   if (_skip.hasMatch(body)) return null;
@@ -208,14 +242,18 @@ ParsedSms? parseBankSms(String sender, String body) {
     direction: direction,
     merchant: _merchant(body, direction),
     account: account.isEmpty ? null : account,
+    toPerson: direction == Expense.out && _p2p.hasMatch(body) && !_card.hasMatch(body) && !_business.hasMatch(body),
   );
 }
 
 String? _merchant(String body, String direction) {
+  // NEFT in: "towards NEFT by Sender RAZORPAY PAYMENTS PVT LTD PAYM, IFSC".
+  if (_neftSender.firstMatch(body) case final m?) return _clean(m.group(1)!);
   // A UPI id names the other side best: "swiggy.stores@axisbank".
   for (final m in _vpa.allMatches(body)) {
     final local = m.group(1)!;
-    if (RegExp(r'^\d+$').hasMatch(local)) continue;
+    // Phone numbers and mandate ids ("e500a9df5984...@slc") name no one.
+    if (RegExp(r'\d').allMatches(local).length > 3) continue;
     final name = local.replaceAll(RegExp(r'[._-]+'), ' ').replaceAll(RegExp(r'\d+'), ' ').trim();
     if (name.length >= 2) return _title(name);
   }
@@ -227,10 +265,24 @@ String? _merchant(String body, String direction) {
     final name = m.group(1)!.trim();
     final lower = name.toLowerCase();
     if (lower.startsWith('your') || lower.contains('a/c') || lower.contains('account') || lower.contains('bank')) continue;
-    if (RegExp(r'^(xx|\*)?\d').hasMatch(lower)) continue;
-    return _title(name);
+    // "linked to card debited INR 2,399.00": no one named.
+    if (lower.startsWith('card') || RegExp(r'\b(debited|credited|inr|rs|sms|suspect|stop|call|dial)\b').hasMatch(lower)) continue;
+    if (RegExp(r'^[x*]*\d').hasMatch(lower)) continue;
+    if (_clean(name) case final clean?) return clean;
   }
   return null;
+}
+
+/// A readable name from what the bank wrote: "PHP*MEESHOT" is Meeshot,
+/// "PAYTM120477" is Paytm, "RENDER.COM+" is Render, "RAZORPAY PAYMENTS PVT
+/// LTD PAYM" is Razorpay Payments.
+String? _clean(String raw) {
+  final name = (raw.contains('*') ? raw.substring(raw.lastIndexOf('*') + 1) : raw)
+      .replaceAll(RegExp(r'\.(com|in|co|io)\b.*', caseSensitive: false), '')
+      .replaceAll(RegExp(r'\b(pvt|private|ltd|limited|lim|llp|inc)\b.*', caseSensitive: false), '')
+      .replaceAll(RegExp(r'[+_]|\d{3,}'), ' ')
+      .trim();
+  return name.length < 2 ? null : _title(name);
 }
 
 String _title(String s) => s
@@ -305,6 +357,13 @@ class Recurring {
 
 const _rememberedKey = 'merchant_categories';
 const _budgetKey = 'money_budget';
+const _ownNamesKey = 'money_own_names';
+
+/// Paying one of these is paying off a card or topping up a wallet the user
+/// owns; the spending itself shows up as card payments.
+const _cardsAndWallets = {'slice', 'cred', 'onecard', 'uni', 'jupiter', 'fi', 'paytm wallet'};
+
+String _plain(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z ]+'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 
 extension Money on Store {
   static const _select = 'SELECT * FROM expenses WHERE deleted_at IS NULL';
@@ -323,23 +382,70 @@ extension Money on Store {
   int? get moneyBudget => int.tryParse(getMeta(_budgetKey) ?? '');
   set moneyBudget(int? paise) => setMeta(_budgetKey, paise?.toString());
 
+  /// Names the user goes by on payments ("alok chaudhary"): money sent to
+  /// them is money moved between their own accounts.
+  List<String> get ownNames => (jsonDecode(getMeta(_ownNamesKey) ?? '[]') as List).cast<String>();
+
+  void addOwnName(String name) {
+    final n = _plain(name);
+    if (n.length < 4 || ownNames.contains(n)) return;
+    setMeta(_ownNamesKey, jsonEncode([...ownNames, n]));
+  }
+
+  /// Banks cut names short ("ALOK CHAUDHA"), so a long enough start counts.
+  bool _isOwnName(String? merchant) {
+    if (merchant == null) return false;
+    final m = _plain(merchant);
+    return ownNames.any((n) {
+      final short = m.length < n.length ? m : n, long = m.length < n.length ? n : m;
+      if (!long.startsWith(short)) return false;
+      // "nexera" is the pocket "nexera new"; "alok chaudha" is "alok chaudhary".
+      return short.length >= 8 || (short.length >= 5 && (long.length == short.length || long[short.length] == ' '));
+    });
+  }
+
+  String _categorize(ParsedSms p, String body) {
+    final first = _plain(p.merchant ?? '').split(' ').first;
+    if (saysOwnTransfer(body) || _isOwnName(p.merchant) || _cardsAndWallets.contains(first)) return Categories.own;
+    final remembered = p.merchant == null ? null : _remembered[p.merchant!.toLowerCase()];
+    if (remembered != null) return remembered;
+    if (p.direction == Expense.into) return Categories.transfers;
+    final guess = guessCategory(p.merchant, body);
+    return guess == Categories.other && p.toPerson ? Categories.people : guess;
+  }
+
   /// Stores the payments among [messages] that are not stored yet (or were
   /// deleted: deleting one means "not an expense"). Returns how many were added.
-  int importSms(Iterable<({String sender, String body, DateTime at})> messages) {
+  /// With [refresh], payments already stored are read again, for when the
+  /// reading of messages has improved; ones that no longer read as payments
+  /// are removed.
+  int importSms(Iterable<({String sender, String body, DateTime at})> messages, {bool refresh = false}) {
     var added = 0;
     db.execute('BEGIN');
     try {
       for (final m in messages) {
+        if (_ownPocket.firstMatch(m.body.replaceAll(_invisible, '')) case final pocket?) addOwnName(pocket.group(1)!);
         final p = parseBankSms(m.sender, m.body);
-        if (p == null) continue;
         final id = 'sms-${_hash('${m.sender}|${m.at.millisecondsSinceEpoch}|${m.body}')}';
-        if (db.select('SELECT 1 FROM expenses WHERE id = ?', [id]).isNotEmpty) continue;
-        final remembered = p.merchant == null ? null : _remembered[p.merchant!.toLowerCase()];
-        final category = saysOwnTransfer(m.body)
-            ? Categories.own
-            : remembered ?? (p.direction == Expense.into ? Categories.transfers : _categoryFor(p.merchant, m.body));
+        final stored = db.select('SELECT deleted_at FROM expenses WHERE id = ?', [id]).firstOrNull;
+        if (stored != null) {
+          if (!refresh || stored['deleted_at'] != null) continue;
+          if (p == null) {
+            _touch(id, {'deleted_at': Store.nowUtc()});
+          } else {
+            _touch(id, {
+              'amount': p.amount,
+              'direction': p.direction,
+              'merchant': p.merchant,
+              'account': p.account,
+              'category': _categorize(p, m.body),
+            });
+          }
+          continue;
+        }
+        if (p == null) continue;
         _put(id, at: m.at, amount: p.amount, direction: p.direction, merchant: p.merchant, account: p.account,
-            category: category, source: 'sms');
+            category: _categorize(p, m.body), source: 'sms');
         added++;
       }
       db.execute('COMMIT');
@@ -347,7 +453,7 @@ extension Money on Store {
       db.execute('ROLLBACK');
       rethrow;
     }
-    if (added > 0) markOwnTransfers();
+    if (added > 0 || refresh) markOwnTransfers();
     return added;
   }
 
@@ -368,6 +474,8 @@ extension Money on Store {
           !e.spent &&
           !used.contains(e.id) &&
           e.amount == out.amount &&
+          // ₹1 and ₹2 card checks are everywhere; they pair by chance.
+          out.amount >= 1000 &&
           e.account != out.account &&
           e.at.difference(out.at).abs() <= within);
       if (match.isEmpty) continue;
@@ -376,6 +484,24 @@ extension Money on Store {
       _touch(out.id, {'category': Categories.own});
       _touch(into.id, {'category': Categories.own});
       pairs++;
+      // Sent to "ALOK CHAUDHARY", arrived from "ALOK CHAUDHA": that is the
+      // user's own name, and later payments to it are theirs too.
+      // A friend paid back from another account would look the same once,
+      // so the name has to keep turning up on both sides.
+      final (a, b) = (_plain(out.merchant ?? ''), _plain(into.merchant ?? ''));
+      final short = a.length < b.length ? a : b;
+      if (short.length >= 8 && a.startsWith(short) && b.startsWith(short)) {
+        final seen = db.select('$_select AND merchant IS NOT NULL').map(Expense.fromRow).where((e) {
+          final m = _plain(e.merchant!);
+          return m.length >= 8 && (m.startsWith(short) || short.startsWith(m));
+        }).toList();
+        if (seen.length >= 4 && seen.any((e) => e.spent) && seen.any((e) => !e.spent) && seen.map((e) => e.date).toSet().length >= 3) {
+          addOwnName(a.length > b.length ? a : b);
+        }
+      }
+    }
+    for (final e in db.select('$_select AND category != ?', [Categories.own]).map(Expense.fromRow)) {
+      if (_isOwnName(e.merchant)) _touch(e.id, {'category': Categories.own});
     }
     return pairs;
   }
