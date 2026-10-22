@@ -33,14 +33,20 @@ Future<void> openHealthSettings() async {
   }
 }
 
+/// Raised when the reading of messages improves, so the last 90 days are read
+/// again.
+const _smsReader = '2';
+const _smsReaderKey = 'sms_reader';
+
 /// Stores payments from messages received since the last read (the last 90
-/// days the first time). Returns how many were new.
+/// days the first time, or after the reader improved). Returns how many were
+/// new.
 Future<int> collectSms(Store store) async {
   if (!await hasSmsAccess()) return 0;
-  final since = int.tryParse(store.getMeta(_smsSinceKey) ?? '') ??
+  final refresh = store.getMeta(_smsReaderKey) != _smsReader;
+  final since = (refresh ? null : int.tryParse(store.getMeta(_smsSinceKey) ?? '')) ??
       DateTime.now().subtract(const Duration(days: 90)).millisecondsSinceEpoch;
   final rows = await sms.invokeListMethod<Map<Object?, Object?>>('inbox', {'since': since}) ?? const [];
-  if (rows.isEmpty) return 0;
   final added = store.importSms([
     for (final r in rows)
       (
@@ -48,8 +54,9 @@ Future<int> collectSms(Store store) async {
         body: r['body'] as String,
         at: DateTime.fromMillisecondsSinceEpoch((r['date'] as num).toInt()),
       ),
-  ]);
-  store.setMeta(_smsSinceKey, '${(rows.last['date'] as num).toInt()}');
+  ], refresh: refresh);
+  if (rows.isNotEmpty) store.setMeta(_smsSinceKey, '${(rows.last['date'] as num).toInt()}');
+  store.setMeta(_smsReaderKey, _smsReader);
   return added;
 }
 
