@@ -941,10 +941,30 @@ class UsageCommand extends Cmd {
 
 class MoneyCommand extends Cmd {
   MoneyCommand()
-      : super('money', 'Spending, from bank and UPI messages on the phone: myvault money [YYYY-MM], or add cash: myvault money add 120 chai');
+      : super('money',
+            'Spending, from bank and UPI messages on the phone: myvault money [YYYY-MM]; add cash: money add 120 chai; '
+            'fix one: money set ID Food, money remove ID; your own name on payments: money me "Alok Chaudhary"');
 
   @override
   void run() {
+    if (rest.isNotEmpty && rest.first == 'set') {
+      if (rest.length < 3 || !Categories.all.contains(rest.sublist(2).join(' '))) {
+        throw UsageException('myvault money set ID CATEGORY, with one of: ${Categories.all.join(', ')}', usage);
+      }
+      store.setExpenseCategory(rest[1], rest.sublist(2).join(' '));
+      final e = store.expense(rest[1])!;
+      return out(e.toJson(), () => '${e.merchant ?? rupees(e.amount)} is now ${e.category}.');
+    }
+    if (rest.isNotEmpty && rest.first == 'remove') {
+      if (rest.length < 2) throw UsageException('myvault money remove ID', usage);
+      store.deleteExpense(rest[1]);
+      return out({'removed': rest[1]}, () => 'Removed.');
+    }
+    if (rest.isNotEmpty && rest.first == 'me') {
+      if (rest.length > 1) store.addOwnName(rest.sublist(1).join(' '));
+      store.markOwnTransfers();
+      return out({'own_names': store.ownNames}, () => 'Your names on payments: ${store.ownNames.join(', ')}');
+    }
     if (rest.isNotEmpty && rest.first == 'add') {
       final rupeesIn = rest.length < 2 ? null : double.tryParse(rest[1].replaceAll(',', ''));
       if (rupeesIn == null || rupeesIn <= 0) throw UsageException('Say how much: myvault money add 120 chai', usage);
