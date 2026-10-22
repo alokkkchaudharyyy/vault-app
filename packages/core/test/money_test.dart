@@ -39,6 +39,30 @@ void main() {
       expect(parseBankSms('AD-SBIUPI', 'Your UPI txn of Rs 300 to zomato@icici failed'), isNull);
       expect(parseBankSms('+919876543210', 'Rs 500 debited from your account'), isNull);
       expect(parseBankSms('AD-HDFCBK', 'Rs 499 will be debited on 01-Nov for your Netflix mandate'), isNull);
+      expect(parseBankSms('JX-RZRPAY-S', 'Settlement worth ₹ 997.96 for Razorpay MID X has been processed. It will be credited in your bank account before 9 PM today!'), isNull);
+      expect(parseBankSms('AD-CANBNK-S', 'Dear Customer, auto pay facility has been successfully activated on your Canara Bank Card XX7967 for INR 200000.00'), isNull);
+    });
+
+    test('numbers with hidden characters in them', () {
+      final p = parseBankSms('BT-SLCBNK-S', 'You transferred Rs. 1,‌00,‌000 from nexera new to slice xx2074 savings successfully.')!;
+      expect(p.amount, 10000000);
+      expect(saysOwnTransfer('You transferred Rs. 50 from nexera new to slice xx2074 savings successfully.'), isTrue);
+    });
+
+    test('slice and Canara formats name who was paid', () {
+      final sent = parseBankSms('BT-SLCBNK-S', 'Rs. 3,200 sent from a/c xx2074 on 18-Oct-26 to RADHIKA (UPI Ref: 629164942598). Not you? Call 08048329999 - slice')!;
+      expect(sent.merchant, 'Radhika');
+      expect(sent.toPerson, isTrue);
+      final card = parseBankSms('AX-CANBNK-S', 'CardTxn:A/C XXX149 Dr INR 406.00 on 11/10/26 13:14 to PHP*MEESHOT;RRN:628413042114;Bal INR 33,901.34. If fraud,SMS SUSPECT to 56161')!;
+      expect(card.merchant, 'Meeshot');
+      expect(card.toPerson, isFalse);
+      final neft = parseBankSms('AD-CANBNK-S', 'An amount of INR 997.96 has been credited to XXX149 on 17/10/2026 towards NEFT by Sender RAZORPAY PAYMENTS PVT LTD PAYM, IFSC UTIB0001506, Sender A/c XXXX6002, AXIS BANK')!;
+      expect(neft.merchant, 'Razorpay Payments');
+      expect(neft.account, 'Canara ••149');
+      final pos = parseBankSms('AX-CANBNK-S', 'A/c XXX149 linked to card  debited INR 2,399.00 on 20/09/26 POS txn. Avl Bal INR 43,610.75. To stop further debit SMS SUSPECT to 56161')!;
+      expect(pos.merchant, isNull);
+      final autopay = parseBankSms('BG-SLCBNK-S', 'Successfully paid Rs.89 from slice a/c XX2074 to Google on 15-Oct-26 via UPI AutoPay. UMN - e500a9df598447858db4ebe3430dc697@slc - slice')!;
+      expect(autopay.merchant, 'Google');
     });
   });
 
@@ -47,6 +71,9 @@ void main() {
     expect(guessCategory('Uber India'), Categories.transport);
     expect(guessCategory('Netflix'), Categories.subscriptions);
     expect(guessCategory('Rahul Sharma'), Categories.other);
+    // Short hints are whole words.
+    expect(guessCategory('Slice Small', 'Not you? Call 080 - slice'), Categories.other);
+    expect(guessCategory('Arvind Kumar', 'received via UPI'), Categories.other);
   });
 
   test('rupees groups the Indian way', () {
@@ -130,6 +157,49 @@ void main() {
       final s = store.moneySummary('2026-10');
       expect(s.spent, 0);
       expect(s.ownTransfers, 3);
+    });
+
+    test("the user's own name is learned, and payments to it are own transfers", () {
+      final messages = [
+        for (final (i, day) in [3, 5, 18].indexed) ...[
+          (
+            sender: 'BT-SLCBNK-S',
+            body: 'Rs. ${1000 + i} sent from a/c xx2074 on $day-Oct-26 to ALOK CHAUDHARY (UPI Ref: 1$i). Not you? - slice',
+            at: DateTime(2026, 10, day, 10),
+          ),
+          (
+            sender: 'AD-CANBNK-S',
+            body: 'Dear Customer, Acct XXX149 credited with INR ${1000 + i}.00 on $day/10/26 from ALOK CHAUDHA; UPI:1$i; Bal INR 5.00-CanaraBank',
+            at: DateTime(2026, 10, day, 10, 1),
+          ),
+        ],
+        (
+          sender: 'AD-CANBNK-S',
+          body: 'Dear Customer, Acct XXX149 Dr. INR 864.00 on 13/10/26 to ALOK CHAUDHA; UPI: 9; Bal INR 5.00.Not you?',
+          at: DateTime(2026, 10, 13),
+        ),
+        (
+          sender: 'BG-SLCBNK-S',
+          body: 'Rs. 500 sent from a/c xx2074 on 20-Oct-26 to PIHU (UPI Ref: 8). Not you? - slice',
+          at: DateTime(2026, 10, 20),
+        ),
+      ];
+      store.importSms(messages);
+      expect(store.ownNames, ['alok chaudhary']);
+      final s = store.moneySummary('2026-10');
+      expect(s.spent, 50000);
+      expect(s.byCategory, [(Categories.people, 50000)]);
+    });
+
+    test('refresh reads stored messages again', () {
+      final m = (sender: 'AD-SLCBNK-S', body: 'Rs. 135 spent on your credit card xx1093 at Neetu medicos on 19-Oct-26 (UPI Ref: 6). - slice', at: DateTime(2026, 10, 19));
+      store.importSms([m]);
+      final id = store.expenses().single.id;
+      store.setExpenseCategory(id, Categories.fun, remember: false);
+      expect(store.importSms([m]), 0);
+      expect(store.expense(id)!.category, Categories.fun);
+      store.importSms([m], refresh: true);
+      expect(store.expense(id)!.category, Categories.health);
     });
   });
 }
